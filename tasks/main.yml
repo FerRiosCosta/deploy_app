@@ -25,11 +25,7 @@
 
 - name: Repo does not exists, deploying containers
   include_tasks: deploy.yml
-  when: repo_not_exists.changed
-
-- name: Repo exists, no new changes, deploying containers
-  include_tasks: deploy.yml
-  when: repo_updated.changed == False and repo_not_exists.changed == False
+  when: repo_not_exists.changed or (repo_updated.changed == False and repo_not_exists.changed == False)
 
 - name: Repo exists, changes were detected, rolling deployment in progress
   include_tasks: rolling-deploy.yml
