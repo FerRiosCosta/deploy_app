@@ -1,0 +1,34 @@
+---
+- name: Removing backend server from load balancer {{ item.name }}
+  community.docker.docker_container_exec:
+    container: "{{ lb_container_name }}"
+    command: /bin/bash -c 'echo "set server b-simple-web-server/{{ item.name }} state maint" | socat stdio /var/run/api.sock'
+
+- name: Building app image {{ item.name }}
+  community.docker.docker_image:
+    build:
+      path: /opt/{{ app_name }}
+      dockerfile: /opt/{{ app_name}}/Dockerfiles/{{ app_image }}/Dockerfile
+      nocache: true
+    name: "{{ app_image }}"
+    tag: "{{ app_version }}"
+    source: build 
+    force_source: true
+
+- name: Running app container {{ item.name }}
+  community.docker.docker_container:
+    name: "{{ item.name }}"
+    image: "{{ item.image }}:{{ item.version }}"
+    detach: true
+    networks:
+      - name: "{{ docker_network_name }}"
+
+- name: Waiting for app container to be ready {{ item.name }} 
+  community.docker.docker_container_exec:
+    container: "{{ lb_container_name }}"
+    command: /bin/bash -c 'while true; do var=$(curl -s -o /dev/null -w "%{http_code}" {{ item.name }}:8080); if [ $var == 200 ]; then break; fi; sleep 5; done;'
+
+- name: Adding app container to load balancer {{ item.name }} 
+  community.docker.docker_container_exec:
+    container: "{{ lb_container_name }}"
+    command: /bin/bash -c 'echo "set server b-simple-web-server/{{ item.name }} state ready" | socat stdio /var/run/api.sock'

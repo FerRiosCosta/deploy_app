@@ -1,0 +1,37 @@
+---
+- name: Installing git
+  ansible.builtin.package:
+    name: "git"
+    state: present
+
+- name: Checking git repo exists {{ app_repo }}
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: /opt/{{ app_name }}
+    update: no
+  register: repo_not_exists
+
+- name: Getting last changes from {{ app_name }} 
+  ansible.builtin.git: 
+    repo: "{{ app_repo }}"
+    dest: /opt/{{ app_name }} 
+    update: true
+    clone: false
+  register: repo_updated
+
+- name: Creating custom docker network {{ docker_network_name }}
+  community.docker.docker_network:
+    name: "{{ docker_network_name }}"
+
+- name: Repo does not exists, deploying containers
+  include_tasks: deploy.yml
+  when: repo_not_exists.changed
+
+- name: Repo exists, no new changes, deploying containers
+  include_tasks: deploy.yml
+  when: repo_updated.changed == False and repo_not_exists.changed == False
+
+- name: Repo exists, changes were detected, rolling deployment in progress
+  include_tasks: rolling-deploy.yml
+  when: repo_updated.changed and repo_not_exists.changed == False
+  loop: "{{ web_containers }}"

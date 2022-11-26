@@ -1,0 +1,44 @@
+---
+- name: Building app image
+  community.docker.docker_image:
+    build:
+      path: /opt/{{ app_name }}
+      dockerfile: /opt/{{ app_name}}/Dockerfiles/{{ app_image }}/Dockerfile
+    name: "{{ app_image }}"
+    tag: "{{ app_version }}"
+    source: build 
+  
+- name: Building load balancer image
+  community.docker.docker_image:
+    build:
+      path: /opt/{{ app_name }}
+      dockerfile: /opt/{{ app_name }}/Dockerfiles/{{ lb_image }}/Dockerfile
+      nocache: "{{ lb_force_build }}"
+    name: "{{ lb_image }}"
+    tag: "{{ lb_version }}"
+    source: build
+    force_source: "{{ lb_force_build }}"
+
+- name: Running app containers
+  community.docker.docker_container:
+    name: "{{ item.name }}"
+    image: "{{ item.image }}:{{ item.version }}"
+    detach: true
+    networks:
+      - name: "{{ docker_network_name }}"
+  loop: "{{ web_containers }}" 
+
+- name: Running load balancer container
+  community.docker.docker_container:
+    name: "{{ lb_container_name }}"
+    image: "{{ lb_container_image }}:{{ lb_container_version }}"
+    detach: true
+    networks:
+      - name: "{{ docker_network_name }}"
+    ports:
+      - "{{ lb_container_app_port }}:{{ lb_container_app_port }}"
+      - "{{ lb_container_stats_port }}:{{ lb_container_stats_port }}"
+      - "{{ lb_container_control_port }}:{{ lb_container_control_port }}"
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0 
+
